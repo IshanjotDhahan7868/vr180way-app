@@ -17,6 +17,12 @@ export default function Home() {
             </p>
           </div>
         </div>
+        <a
+          href="/browse"
+          className="ml-auto rounded-lg border border-bord bg-surf px-3 py-1.5 text-xs font-medium text-txt2 transition-colors hover:text-txt"
+        >
+          VR Browser
+        </a>
       </header>
 
       <Converter />
