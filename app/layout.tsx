@@ -1,27 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Share_Tech_Mono, Exo_2 } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const shareTechMono = Share_Tech_Mono({
-  weight: "400",
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-inter",
   display: "swap",
 });
 
-const exo2 = Exo_2({
+const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-body",
+  variable: "--font-jetbrains",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "VR180 Converter — Convert Videos for Google Cardboard",
+  title: "VR180 — Convert any video for Google Cardboard",
   description:
-    "Convert regular videos to VR180 side-by-side format for Google Cardboard and VR headsets. Upload from your phone, download ready-to-watch VR videos.",
+    "Turn regular videos into VR. Upload a file or paste a YouTube link, pick your settings, and get a VR-ready video for Google Cardboard.",
   openGraph: {
     title: "VR180 Converter",
-    description: "Convert any video to VR180 for Google Cardboard",
+    description: "Convert any video to VR for Google Cardboard",
     type: "website",
   },
 };
@@ -30,7 +29,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#080c10",
+  themeColor: "#09090b",
 };
 
 export default function RootLayout({
@@ -39,12 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${shareTechMono.variable} ${exo2.variable}`}>
-      <body>
-        <div className="bg-grid" />
-        <div className="bg-vig" />
-        {children}
-      </body>
+    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

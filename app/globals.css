@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: #080c10;
-  --color-surf: #0d1520;
-  --color-bord: rgba(0, 200, 255, 0.15);
-  --color-cyan: #00ccff;
-  --color-grn: #00ffb3;
-  --color-red: #ff4466;
-  --color-purp: #aa88ff;
-  --color-gold: #ffcc00;
-  --color-txt: #c8dde8;
-  --color-mut: #4a6070;
-  --font-mono: "Share Tech Mono", monospace;
-  --font-body: "Exo 2", sans-serif;
+  --color-bg: #09090b;
+  --color-surf: #18181b;
+  --color-surf2: #1f1f23;
+  --color-bord: rgba(255, 255, 255, 0.08);
+  --color-accent: #6366f1;
+  --color-accent-soft: rgba(99, 102, 241, 0.12);
+  --color-green: #22c55e;
+  --color-green-soft: rgba(34, 197, 94, 0.12);
+  --color-red: #ef4444;
+  --color-red-soft: rgba(239, 68, 68, 0.12);
+  --color-amber: #f59e0b;
+  --color-amber-soft: rgba(245, 158, 11, 0.12);
+  --color-txt: #fafafa;
+  --color-txt2: #a1a1aa;
+  --color-txt3: #52525b;
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
 }
 
 *,
@@ -28,36 +33,11 @@ body {
   height: 100%;
   background: var(--color-bg);
   color: var(--color-txt);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Background grid */
-.bg-grid {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image: linear-gradient(
-      rgba(0, 200, 255, 0.04) 1px,
-      transparent 1px
-    ),
-    linear-gradient(90deg, rgba(0, 200, 255, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-.bg-vig {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 40%,
-    var(--color-bg) 100%
-  );
-}
-
-/* Spinner animation */
+/* Spinner */
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -67,7 +47,7 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* Slider track styling */
+/* Slider */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -77,16 +57,17 @@ input[type="range"] {
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 14px;
-  width: 14px;
+  height: 16px;
+  width: 16px;
   border-radius: 50%;
-  background: var(--color-cyan);
+  background: var(--color-accent);
   border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
 }
 input[type="range"]::-moz-range-thumb {
-  height: 14px;
-  width: 14px;
+  height: 16px;
+  width: 16px;
   border-radius: 50%;
-  background: var(--color-cyan);
+  background: var(--color-accent);
   border: 2px solid var(--color-bg);
 }

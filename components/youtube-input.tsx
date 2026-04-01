@@ -11,15 +11,9 @@ interface YouTubeInputProps {
   disabled?: boolean;
 }
 
-export function YouTubeInput({
-  params,
-  onJobCreated,
-  onJobUpdate,
-  disabled,
-}: YouTubeInputProps) {
+export function YouTubeInput({ params, onJobCreated, onJobUpdate, disabled }: YouTubeInputProps) {
   const [url, setUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
   const isValid = YOUTUBE_URL_REGEX.test(url.trim());
 
   const handleSubmit = useCallback(async () => {
@@ -89,30 +83,27 @@ export function YouTubeInput({
   }, [url, isValid, submitting, params, onJobCreated, onJobUpdate]);
 
   return (
-    <div>
-      <div className="mb-2.5 font-mono text-[10px] tracking-[3px] text-cyan opacity-70">
-        YOUTUBE URL
-      </div>
+    <div className="flex flex-col gap-3">
       <div className="flex gap-2">
         <input
           type="url"
-          placeholder="https://youtube.com/watch?v=..."
+          placeholder="Paste a YouTube link..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
           disabled={disabled || submitting}
-          className="flex-1 rounded-lg border border-bord bg-surf px-3 py-2.5 font-mono text-[12px] text-txt outline-none placeholder:text-mut/50 focus:border-cyan disabled:opacity-50"
+          className="flex-1 rounded-xl border border-bord bg-surf px-4 py-3 text-sm text-txt outline-none placeholder:text-txt3 focus:border-accent disabled:opacity-50"
         />
         <button
           onClick={handleSubmit}
           disabled={!isValid || submitting || disabled}
-          className="cursor-pointer whitespace-nowrap rounded-lg border border-cyan/25 bg-cyan/[0.07] px-4 py-2.5 font-mono text-[11px] tracking-[1px] text-cyan transition-colors hover:border-cyan hover:bg-cyan/15 disabled:cursor-not-allowed disabled:opacity-40"
+          className="cursor-pointer rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "Starting..." : "Convert"}
         </button>
       </div>
-      <p className="mt-2 font-mono text-[10px] text-mut">
-        Max 10 minutes, 720p. YouTube 360 videos auto-detected.
+      <p className="text-xs text-txt3">
+        Videos up to 10 minutes, downloaded at 720p. YouTube 360 videos are auto-detected.
       </p>
     </div>
   );

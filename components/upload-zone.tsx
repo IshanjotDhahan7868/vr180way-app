@@ -16,20 +16,13 @@ function formatBytes(b: number) {
   return `${(b / 1048576).toFixed(1)} MB`;
 }
 
-export function UploadZone({
-  params,
-  onJobCreated,
-  onJobUpdate,
-  disabled,
-}: UploadZoneProps) {
+export function UploadZone({ params, onJobCreated, onJobUpdate, disabled }: UploadZoneProps) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(
     async (file: File) => {
       const jobId = crypto.randomUUID();
-
-      // Create job in uploading state
       const isImage = file.type.startsWith("image/");
       const job: Job = {
         jobId,
@@ -51,14 +44,13 @@ export function UploadZone({
       onJobCreated(job);
 
       try {
-        // Upload directly to Vercel Blob
         const blob = await upload(file.name, file, {
           access: "public",
           handleUploadUrl: "/api/upload-token",
-          multipart: file.size > 10 * 1024 * 1024, // multipart for >10MB
+          multipart: file.size > 10 * 1024 * 1024,
           onUploadProgress: ({ percentage }) => {
             onJobUpdate(jobId, {
-              progress: Math.round(percentage * 0.4), // 0-40% for upload
+              progress: Math.round(percentage * 0.4),
               stage: `Uploading... ${Math.round(percentage)}%`,
             });
           },
@@ -71,7 +63,6 @@ export function UploadZone({
           stage: "Starting conversion...",
         });
 
-        // Start processing on worker
         const res = await fetch("/api/start-job", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -97,7 +88,7 @@ export function UploadZone({
 
         const data = await res.json();
         onJobUpdate(jobId, {
-          jobId: data.job_id, // Replace local UUID with worker's UUID
+          jobId: data.job_id,
           status: "processing",
           progress: 42,
           stage: "Processing...",
@@ -115,10 +106,10 @@ export function UploadZone({
 
   const handleFiles = useCallback(
     async (files: File[]) => {
-      const videoFiles = files.filter(
+      const valid = files.filter(
         (f) => f.type.startsWith("video/") || f.type.startsWith("image/") || /\.(mp4|mov|avi|mkv|webm|m4v|wmv|jpg|jpeg|png|webp|heic)$/i.test(f.name)
       );
-      for (const file of videoFiles) {
+      for (const file of valid) {
         processFile(file);
       }
     },
@@ -126,48 +117,31 @@ export function UploadZone({
   );
 
   return (
-    <div>
-      <div className="mb-2.5 font-mono text-[10px] tracking-[3px] text-cyan opacity-70">
-        UPLOAD VIDEOS
+    <div
+      className={`relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed bg-surf p-10 text-center transition-all ${
+        dragging ? "border-accent bg-accent-soft" : "border-bord hover:border-white/15"
+      } ${disabled ? "pointer-events-none opacity-50" : ""}`}
+      onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); if (!disabled) handleFiles(Array.from(e.dataTransfer.files)); }}
+      onClick={() => !disabled && inputRef.current?.click()}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*,image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(Array.from(e.target.files || []))}
+      />
+      <div className="mb-3 text-3xl opacity-40">
+        {disabled ? "\u23F3" : "\u2B06"}
       </div>
-      <div
-        className={`relative cursor-pointer overflow-hidden rounded-lg border-[1.5px] border-dashed bg-surf p-9 text-center transition-colors ${
-          dragging ? "border-cyan bg-cyan/[0.04]" : "border-bord hover:border-cyan hover:bg-cyan/[0.04]"
-        } ${disabled ? "pointer-events-none opacity-60" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!disabled) setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          if (!disabled) {
-            handleFiles(Array.from(e.dataTransfer.files));
-          }
-        }}
-        onClick={() => !disabled && inputRef.current?.click()}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="video/*,image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(Array.from(e.target.files || []))}
-        />
-        <div className="mb-2 text-[26px] opacity-50">
-          {disabled ? "\u27F3" : "\u2B21"}
-        </div>
-        <div className="mb-1 text-sm font-semibold">
-          {disabled ? "Uploading\u2026" : "Drop videos here"}
-        </div>
-        <div className="font-mono text-[11px] tracking-[1px] text-mut">
-          MP4 \u00B7 MOV \u00B7 MKV \u00B7 AVI \u00B7 WebM \u00B7 JPG \u00B7 PNG
-        </div>
-        {dragging && (
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,200,255,0.12),transparent_70%)]" />
-        )}
+      <div className="mb-1 text-base font-medium">
+        {disabled ? "Uploading..." : "Drop a video or image here"}
+      </div>
+      <div className="text-sm text-txt3">
+        or click to browse. MP4, MOV, MKV, JPG, PNG
       </div>
     </div>
   );

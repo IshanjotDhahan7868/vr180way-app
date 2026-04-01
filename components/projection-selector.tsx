@@ -10,38 +10,26 @@ interface ProjectionSelectorProps {
 export function ProjectionSelector({ projection, onChange }: ProjectionSelectorProps) {
   return (
     <div>
-      <div className="mb-2.5 font-mono text-[10px] tracking-[3px] text-cyan opacity-70">
-        PROJECTION
+      <label className="mb-2 block text-sm font-medium text-txt2">Field of view</label>
+      <div className="flex gap-2">
+        {([
+          { key: "vr180" as const, label: "180\u00B0", desc: "Standard Cardboard" },
+          { key: "vr360" as const, label: "360\u00B0", desc: "Look all around" },
+        ]).map(({ key, label, desc }) => (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className={`flex-1 cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all ${
+              projection === key
+                ? "border-accent bg-accent-soft text-txt"
+                : "border-bord bg-surf text-txt3 hover:border-white/15 hover:text-txt2"
+            }`}
+          >
+            <div className="text-sm font-medium">{label}</div>
+            <div className="mt-0.5 text-xs opacity-70">{desc}</div>
+          </button>
+        ))}
       </div>
-      <div className="flex gap-1.5">
-        <button
-          className="cursor-pointer whitespace-nowrap rounded border px-2.5 py-1.5 font-mono text-[10px] tracking-[1px] transition-all hover:border-white/30 hover:text-txt"
-          style={
-            projection === "vr180"
-              ? { borderColor: "#00ccff", background: "#00ccff18", color: "#00ccff" }
-              : { borderColor: "rgba(0,200,255,0.15)", color: "#4a6070", background: "#0d1520" }
-          }
-          onClick={() => onChange("vr180")}
-        >
-          VR180
-        </button>
-        <button
-          className="cursor-pointer whitespace-nowrap rounded border px-2.5 py-1.5 font-mono text-[10px] tracking-[1px] transition-all hover:border-white/30 hover:text-txt"
-          style={
-            projection === "vr360"
-              ? { borderColor: "#aa88ff", background: "#aa88ff18", color: "#aa88ff" }
-              : { borderColor: "rgba(0,200,255,0.15)", color: "#4a6070", background: "#0d1520" }
-          }
-          onClick={() => onChange("vr360")}
-        >
-          VR360
-        </button>
-      </div>
-      <p className="mt-2 font-mono text-[10px] text-mut">
-        {projection === "vr180"
-          ? "180\u00B0 side-by-side — standard Google Cardboard format"
-          : "360\u00B0 full sphere — look around in all directions"}
-      </p>
     </div>
   );
 }

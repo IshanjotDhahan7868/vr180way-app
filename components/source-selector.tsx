@@ -9,29 +9,23 @@ interface SourceSelectorProps {
 
 export function SourceSelector({ source, onChange }: SourceSelectorProps) {
   return (
-    <div className="flex rounded-lg border border-bord overflow-hidden">
-      <button
-        className="flex-1 px-4 py-2.5 font-mono text-[11px] tracking-[1px] transition-colors cursor-pointer border-none"
-        style={
-          source === "file"
-            ? { background: "#00ccff18", color: "#00ccff" }
-            : { background: "#0d1520", color: "#4a6070" }
-        }
-        onClick={() => onChange("file")}
-      >
-        Upload File
-      </button>
-      <button
-        className="flex-1 px-4 py-2.5 font-mono text-[11px] tracking-[1px] transition-colors cursor-pointer border-none border-l border-l-bord"
-        style={
-          source === "youtube"
-            ? { background: "#ff444618", color: "#ff4466" }
-            : { background: "#0d1520", color: "#4a6070" }
-        }
-        onClick={() => onChange("youtube")}
-      >
-        YouTube URL
-      </button>
+    <div className="flex gap-1 rounded-xl bg-surf p-1">
+      {([
+        { key: "file" as const, label: "Upload file" },
+        { key: "youtube" as const, label: "YouTube link" },
+      ]).map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          className={`flex-1 cursor-pointer rounded-lg border-none px-4 py-2.5 text-sm font-medium transition-all ${
+            source === key
+              ? "bg-accent-soft text-accent shadow-sm"
+              : "bg-transparent text-txt3 hover:text-txt2"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

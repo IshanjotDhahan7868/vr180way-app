@@ -9,12 +9,6 @@ interface QualitySelectorProps {
   onResolutionChange: (r: OutputResolution) => void;
 }
 
-const QUALITY_INFO: Record<QualityPreset, { label: string; desc: string; color: string }> = {
-  fast: { label: "Fast", desc: "Quick conversion, smaller file", color: "#00ffb3" },
-  balanced: { label: "Balanced", desc: "Good quality, reasonable speed", color: "#00ccff" },
-  high: { label: "High", desc: "Best quality, slower conversion", color: "#ffcc00" },
-};
-
 export function QualitySelector({
   quality,
   resolution,
@@ -22,70 +16,53 @@ export function QualitySelector({
   onResolutionChange,
 }: QualitySelectorProps) {
   return (
-    <div className="rounded-lg border border-bord bg-surf p-4">
-      <div className="mb-3 font-mono text-[10px] tracking-[3px] text-cyan opacity-70">
-        OUTPUT SETTINGS
-      </div>
+    <div className="rounded-2xl border border-bord bg-surf p-5">
+      <h3 className="mb-4 text-sm font-medium text-txt">Output settings</h3>
 
-      <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-        {/* Quality */}
+      <div className="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
         <div>
-          <div className="mb-1.5 font-mono text-[9px] tracking-[2px] text-mut">
-            QUALITY
-          </div>
+          <label className="mb-2 block text-xs font-medium text-txt2">Quality</label>
           <div className="flex gap-1.5">
-            {(["fast", "balanced", "high"] as const).map((q) => {
-              const info = QUALITY_INFO[q];
-              const active = quality === q;
-              return (
-                <button
-                  key={q}
-                  className="flex-1 cursor-pointer rounded border px-2 py-1.5 font-mono text-[10px] tracking-[1px] transition-all hover:border-white/30"
-                  style={
-                    active
-                      ? { borderColor: info.color, background: info.color + "18", color: info.color }
-                      : { borderColor: "rgba(0,200,255,0.15)", color: "#4a6070", background: "transparent" }
-                  }
-                  onClick={() => onQualityChange(q)}
-                >
-                  {info.label}
-                </button>
-              );
-            })}
+            {([
+              { key: "fast" as const, label: "Fast" },
+              { key: "balanced" as const, label: "Balanced" },
+              { key: "high" as const, label: "High" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onQualityChange(key)}
+                className={`flex-1 cursor-pointer rounded-lg border px-2.5 py-2 text-xs font-medium transition-all ${
+                  quality === key
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-bord bg-surf2 text-txt3 hover:text-txt2"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <p className="mt-1 font-mono text-[9px] text-mut">
-            {QUALITY_INFO[quality].desc}
-          </p>
         </div>
 
-        {/* Resolution */}
         <div>
-          <div className="mb-1.5 font-mono text-[9px] tracking-[2px] text-mut">
-            RESOLUTION (per eye)
-          </div>
+          <label className="mb-2 block text-xs font-medium text-txt2">Resolution</label>
           <div className="flex gap-1.5">
-            {(["720p", "1080p"] as const).map((r) => {
-              const active = resolution === r;
-              const color = r === "1080p" ? "#ffcc00" : "#00ccff";
-              return (
-                <button
-                  key={r}
-                  className="flex-1 cursor-pointer rounded border px-2 py-1.5 font-mono text-[10px] tracking-[1px] transition-all hover:border-white/30"
-                  style={
-                    active
-                      ? { borderColor: color, background: color + "18", color }
-                      : { borderColor: "rgba(0,200,255,0.15)", color: "#4a6070", background: "transparent" }
-                  }
-                  onClick={() => onResolutionChange(r)}
-                >
-                  {r}
-                </button>
-              );
-            })}
+            {([
+              { key: "720p" as const, label: "720p" },
+              { key: "1080p" as const, label: "1080p" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onResolutionChange(key)}
+                className={`flex-1 cursor-pointer rounded-lg border px-2.5 py-2 text-xs font-medium transition-all ${
+                  resolution === key
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-bord bg-surf2 text-txt3 hover:text-txt2"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <p className="mt-1 font-mono text-[9px] text-mut">
-            {resolution === "1080p" ? "1920x1080 per eye — sharper, larger file" : "1280x720 per eye — faster, uses less memory"}
-          </p>
         </div>
       </div>
     </div>
