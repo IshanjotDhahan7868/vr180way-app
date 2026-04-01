@@ -30,11 +30,15 @@ export function UploadZone({
       const jobId = crypto.randomUUID();
 
       // Create job in uploading state
+      const isImage = file.type.startsWith("image/");
       const job: Job = {
         jobId,
         filename: file.name,
         size: file.size,
         warpMode: params.warpMode,
+        projection: params.projection,
+        sourceType: "file",
+        mediaType: isImage ? "image" : "video",
         status: "uploading",
         progress: 0,
         stage: `Uploading ${formatBytes(file.size)}...`,
@@ -75,6 +79,7 @@ export function UploadZone({
             blobUrl: blob.url,
             originalFilename: file.name,
             warpMode: params.warpMode,
+            projection: params.projection,
             stretchH: params.stretchH,
             stretchV: params.stretchV,
             cropX: params.cropX,
@@ -109,7 +114,7 @@ export function UploadZone({
   const handleFiles = useCallback(
     async (files: File[]) => {
       const videoFiles = files.filter(
-        (f) => f.type.startsWith("video/") || /\.(mp4|mov|avi|mkv|webm|m4v|wmv)$/i.test(f.name)
+        (f) => f.type.startsWith("video/") || f.type.startsWith("image/") || /\.(mp4|mov|avi|mkv|webm|m4v|wmv|jpg|jpeg|png|webp|heic)$/i.test(f.name)
       );
       for (const file of videoFiles) {
         processFile(file);
@@ -144,7 +149,7 @@ export function UploadZone({
         <input
           ref={inputRef}
           type="file"
-          accept="video/*"
+          accept="video/*,image/*"
           multiple
           className="hidden"
           onChange={(e) => handleFiles(Array.from(e.target.files || []))}
@@ -156,7 +161,7 @@ export function UploadZone({
           {disabled ? "Uploading\u2026" : "Drop videos here"}
         </div>
         <div className="font-mono text-[11px] tracking-[1px] text-mut">
-          MP4 \u00B7 MOV \u00B7 MKV \u00B7 AVI \u00B7 WebM
+          MP4 \u00B7 MOV \u00B7 MKV \u00B7 AVI \u00B7 WebM \u00B7 JPG \u00B7 PNG
         </div>
         {dragging && (
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,200,255,0.12),transparent_70%)]" />

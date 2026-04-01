@@ -6,34 +6,26 @@ const API_SECRET = process.env.API_SECRET || "";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const { youtubeUrl, warpMode, projection, stretchH, stretchV, cropX, cropY, zoom } = body;
 
-    const { blobUrl, originalFilename, warpMode, projection, stretchH, stretchV, cropX, cropY, zoom } = body;
-
-    if (!blobUrl || !originalFilename) {
-      return NextResponse.json(
-        { error: "Missing blobUrl or originalFilename" },
-        { status: 400 }
-      );
+    if (!youtubeUrl) {
+      return NextResponse.json({ error: "Missing YouTube URL" }, { status: 400 });
     }
 
-    if (!["stretch", "pad"].includes(warpMode)) {
-      return NextResponse.json(
-        { error: "warp_mode must be 'stretch' or 'pad'" },
-        { status: 400 }
-      );
+    const urlPattern = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/;
+    if (!urlPattern.test(youtubeUrl)) {
+      return NextResponse.json({ error: "Invalid YouTube URL" }, { status: 400 });
     }
 
-    // Forward to Render worker
-    const workerRes = await fetch(`${WORKER_URL}/api/process`, {
+    const workerRes = await fetch(`${WORKER_URL}/api/process-url`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(API_SECRET ? { Authorization: `Bearer ${API_SECRET}` } : {}),
       },
       body: JSON.stringify({
-        blob_url: blobUrl,
-        original_filename: originalFilename,
-        warp_mode: warpMode,
+        youtube_url: youtubeUrl,
+        warp_mode: warpMode ?? "pad",
         projection: projection ?? "vr180",
         stretch_h: stretchH ?? 1.0,
         stretch_v: stretchV ?? 1.0,

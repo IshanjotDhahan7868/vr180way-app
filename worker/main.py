@@ -61,6 +61,18 @@ class ProcessRequest(BaseModel):
     blob_url: str
     original_filename: str
     warp_mode: str = "pad"
+    projection: str = "vr180"
+    stretch_h: float = 1.0
+    stretch_v: float = 1.0
+    crop_x: float = 0.0
+    crop_y: float = 0.0
+    zoom: float = 1.0
+
+
+class ProcessURLRequest(BaseModel):
+    youtube_url: str
+    warp_mode: str = "pad"
+    projection: str = "vr180"
     stretch_h: float = 1.0
     stretch_v: float = 1.0
     crop_x: float = 0.0
@@ -120,7 +132,7 @@ def build_ffmpeg_command(
     warp_mode: str, info: dict,
     stretch_h: float = 1.0, stretch_v: float = 1.0,
     crop_x: float = 0.0, crop_y: float = 0.0,
-    zoom: float = 1.0,
+    zoom: float = 1.0, projection: str = "vr180",
 ) -> list:
     EYE_W = 1920
     EYE_H = 1080
@@ -132,6 +144,12 @@ def build_ffmpeg_command(
     zm = max(0.5, min(3.0, zoom))
 
     filters = []
+
+    # Pre-scale large inputs to 720p to prevent OOM on constrained VMs
+    src_w = info.get("width", 1920)
+    src_h = info.get("height", 1080)
+    if src_w > 1280 or src_h > 720:
+        filters.append("scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:flags=fast_bilinear")
 
     # Scale to fit inside eye frame (letterbox/pillarbox)
     fit_filter = (
@@ -175,9 +193,17 @@ def build_ffmpeg_command(
     # Ensure exact eye frame size
     filters.append(f"scale={EYE_W}:{EYE_H}:flags=lanczos")
 
-    # Equirectangular warp for stretch mode
+    # Equirectangular warp
     if warp_mode == "stretch":
-        filters.append("v360=rectilinear:hequirect:ih_fov=90:iv_fov=60:interp=cubic")
+        if projection == "vr360":
+            # Full 360 sphere — rectilinear to full equirectangular
+            filters.append("v360=flat:equirect:ih_fov=90:iv_fov=60:interp=cubic")
+        else:
+            # 180 half sphere — rectilinear to half equirectangular
+            filters.append("v360=rectilinear:hequirect:ih_fov=90:iv_fov=60:interp=cubic")
+    elif projection == "vr360":
+        # Pad mode + 360: still project flat content onto full sphere
+        filters.append("v360=flat:equirect:ih_fov=110:iv_fov=70:interp=cubic")
 
     # SBS duplication
     chain = ",".join(filters)
@@ -268,7 +294,8 @@ def upload_to_blob(local_path: Path, filename: str) -> str:
 
 def process_video(job_id: str, blob_url: str, original_filename: str,
                   warp_mode: str, stretch_h: float, stretch_v: float,
-                  crop_x: float, crop_y: float, zoom: float):
+                  crop_x: float, crop_y: float, zoom: float,
+                  projection: str = "vr180"):
     global active_job_count
     job = jobs[job_id]
 
@@ -293,13 +320,15 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
 
         # Process
         stem = Path(original_filename).stem
-        out_name = f"{stem}_vr180_{warp_mode}.mp4"
+        proj_label = "vr360" if projection == "vr360" else "vr180"
+        out_name = f"{stem}_{proj_label}_{warp_mode}.mp4"
         out_path = TMP_DIR / f"{job_id}_output.mp4"
         job.update({"progress": 8, "stage": "Starting encoder...",
                      "orientation": info.get("orientation", "landscape")})
 
         cmd = build_ffmpeg_command(input_path, out_path, warp_mode, info,
-                                   stretch_h, stretch_v, crop_x, crop_y, zoom)
+                                   stretch_h, stretch_v, crop_x, crop_y, zoom,
+                                   projection=projection)
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, bufsize=1)
 
@@ -331,6 +360,7 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
             "stage": "Done!",
             "output_filename": out_name,
             "output_url": output_blob_url,
+            "projection": projection,
         })
 
     except Exception as e:
@@ -365,6 +395,7 @@ async def start_processing(req: ProcessRequest):
         "progress": 0,
         "filename": req.original_filename,
         "warp_mode": req.warp_mode,
+        "projection": req.projection,
         "output_filename": None,
         "output_url": None,
         "error": None,
@@ -375,12 +406,192 @@ async def start_processing(req: ProcessRequest):
     thread = threading.Thread(
         target=process_video,
         args=(job_id, req.blob_url, req.original_filename, req.warp_mode,
+              req.stretch_h, req.stretch_v, req.crop_x, req.crop_y, req.zoom,
+              req.projection),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"job_id": job_id}
+
+
+@app.post("/api/process-url")
+async def start_url_processing(req: ProcessURLRequest):
+    """Process a YouTube URL — download with yt-dlp then convert."""
+    global active_job_count
+    import re
+
+    if req.warp_mode not in ("stretch", "pad"):
+        raise HTTPException(400, "warp_mode must be 'stretch' or 'pad'")
+
+    url_pattern = re.compile(r'^https?://(www\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)')
+    if not url_pattern.match(req.youtube_url):
+        raise HTTPException(400, "Invalid YouTube URL")
+
+    with job_lock:
+        if active_job_count >= MAX_CONCURRENT_JOBS:
+            raise HTTPException(429, "Server busy — try again in a few minutes")
+        active_job_count += 1
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "job_id": job_id,
+        "status": "queued",
+        "progress": 0,
+        "filename": req.youtube_url,
+        "warp_mode": req.warp_mode,
+        "projection": req.projection,
+        "output_filename": None,
+        "output_url": None,
+        "error": None,
+        "stage": "Queued",
+        "orientation": None,
+    }
+
+    thread = threading.Thread(
+        target=process_youtube,
+        args=(job_id, req.youtube_url, req.warp_mode, req.projection,
               req.stretch_h, req.stretch_v, req.crop_x, req.crop_y, req.zoom),
         daemon=True,
     )
     thread.start()
 
     return {"job_id": job_id}
+
+
+def process_youtube(job_id: str, youtube_url: str, warp_mode: str,
+                    projection: str, stretch_h: float, stretch_v: float,
+                    crop_x: float, crop_y: float, zoom: float):
+    """Download from YouTube with yt-dlp, then process with FFmpeg."""
+    global active_job_count
+    job = jobs[job_id]
+
+    try:
+        # Fetch metadata first
+        job.update({"status": "processing", "progress": 2, "stage": "Fetching video info..."})
+        meta_result = subprocess.run(
+            ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", youtube_url],
+            capture_output=True, text=True, timeout=30
+        )
+        if meta_result.returncode != 0:
+            err = meta_result.stderr.strip()
+            if "age" in err.lower():
+                raise ValueError("This video is age-restricted and cannot be downloaded.")
+            if "private" in err.lower():
+                raise ValueError("This video is private.")
+            raise ValueError(f"Cannot access video: {err[:200]}")
+
+        meta = json.loads(meta_result.stdout)
+        title = meta.get("title", "video")
+        duration = meta.get("duration", 0)
+        is_live = meta.get("is_live", False)
+
+        if is_live:
+            raise ValueError("Live streams cannot be converted.")
+        if duration and duration > MAX_DURATION_SEC:
+            raise ValueError(f"Video too long ({duration}s). Max is {MAX_DURATION_SEC // 60} minutes.")
+
+        # Download
+        job.update({"progress": 8, "stage": f"Downloading: {title[:40]}..."})
+        input_path = TMP_DIR / f"{job_id}_input.mp4"
+        dl_result = subprocess.run(
+            ["yt-dlp",
+             "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
+             "--merge-output-format", "mp4",
+             "--no-playlist",
+             "--max-filesize", f"{MAX_FILE_SIZE_MB}M",
+             "-o", str(input_path),
+             youtube_url],
+            capture_output=True, text=True, timeout=300
+        )
+        if dl_result.returncode != 0 or not input_path.exists():
+            raise RuntimeError(f"Download failed: {dl_result.stderr.strip()[:200]}")
+
+        # Analyse
+        job.update({"progress": 30, "stage": "Analysing video..."})
+        info = get_video_info(input_path)
+
+        # Check if source is already 360 (spherical metadata)
+        is_spherical = False
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", str(input_path)],
+            capture_output=True, text=True
+        )
+        if probe.returncode == 0:
+            probe_data = json.loads(probe.stdout)
+            for stream in probe_data.get("streams", []):
+                side_data = stream.get("side_data_list", [])
+                for sd in (side_data or []):
+                    if isinstance(sd, dict) and sd.get("side_data_type", "").lower().find("spherical") >= 0:
+                        is_spherical = True
+
+        # Build output
+        safe_title = "".join(c if c.isalnum() or c in " -_" else "" for c in title)[:50].strip() or "youtube"
+        proj_label = "vr360" if projection == "vr360" else "vr180"
+        out_name = f"{safe_title}_{proj_label}_{warp_mode}.mp4"
+        out_path = TMP_DIR / f"{job_id}_output.mp4"
+
+        job.update({"progress": 35, "stage": "Starting encoder...",
+                     "orientation": info.get("orientation", "landscape")})
+
+        if is_spherical and projection == "vr360":
+            # Already 360 — just duplicate to SBS, no re-projection
+            filter_complex = "[0:v]split[l][r];[l][r]hstack[out]"
+            cmd = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-filter_complex", filter_complex,
+                "-map", "[out]", "-map", "0:a?",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
+                "-progress", "pipe:2", "-nostats",
+                str(out_path)
+            ]
+        else:
+            cmd = build_ffmpeg_command(input_path, out_path, warp_mode, info,
+                                       stretch_h, stretch_v, crop_x, crop_y, zoom,
+                                       projection=projection)
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, bufsize=1)
+        vid_duration = info.get("duration", 0)
+        for line in proc.stderr:
+            line = line.strip()
+            if line.startswith("out_time="):
+                elapsed = parse_time(line.split("=", 1)[1])
+                if vid_duration > 0:
+                    pct = min(int((elapsed / vid_duration) * 50) + 40, 89)
+                    if pct > job["progress"]:
+                        job["progress"] = pct
+                        job["stage"] = f"Converting... {pct}%"
+
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError("FFmpeg conversion failed.")
+
+        job.update({"progress": 91, "stage": "Injecting VR metadata..."})
+        inject_vr180_metadata(out_path)
+
+        job.update({"progress": 94, "stage": "Uploading result..."})
+        output_blob_url = upload_to_blob(out_path, f"vr180/{job_id}/{out_name}")
+
+        job.update({
+            "status": "done",
+            "progress": 100,
+            "stage": "Done!",
+            "output_filename": out_name,
+            "output_url": output_blob_url,
+            "projection": projection,
+        })
+
+    except Exception as e:
+        job.update({"status": "error", "error": str(e), "stage": "Error"})
+
+    finally:
+        for f in TMP_DIR.glob(f"{job_id}_*"):
+            f.unlink(missing_ok=True)
+        with job_lock:
+            active_job_count -= 1
 
 
 @app.get("/api/status/{job_id}")

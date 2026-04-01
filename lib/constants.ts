@@ -28,5 +28,14 @@ export const ALLOWED_VIDEO_TYPES = [
   "video/x-ms-wmv",
 ];
 
+export const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+];
+
+export const YOUTUBE_URL_REGEX = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/;
+
 export const WORKER_URL = process.env.WORKER_URL || "http://localhost:8000";
 export const API_SECRET = process.env.API_SECRET || "";

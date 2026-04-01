@@ -99,16 +99,26 @@ function JobRow({ job }: { job: Job }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            {"\u2193"} Download VR180
+            {"\u2193"} Download
           </a>
-          <button
-            className="cursor-pointer border-none bg-transparent px-0.5 text-left font-mono text-[10px] text-mut hover:text-txt"
-            onClick={() => {
-              navigator.clipboard.writeText(job.outputUrl!);
-            }}
-          >
-            Copy share link
-          </button>
+          <div className="flex gap-2">
+            <a
+              className="inline-block rounded border border-purp bg-purp/10 px-4 py-1.5 font-mono text-[12px] tracking-[2px] text-purp no-underline transition-colors hover:bg-purp/20"
+              href={`/watch?url=${encodeURIComponent(job.outputUrl)}&projection=${job.projection || "vr180"}&type=video`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Watch in VR
+            </a>
+            <button
+              className="cursor-pointer border-none bg-transparent px-0.5 text-left font-mono text-[10px] text-mut hover:text-txt"
+              onClick={() => {
+                navigator.clipboard.writeText(job.outputUrl!);
+              }}
+            >
+              Copy link
+            </button>
+          </div>
         </div>
       )}
     </div>

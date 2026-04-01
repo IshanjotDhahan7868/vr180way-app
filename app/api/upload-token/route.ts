@@ -18,6 +18,10 @@ export async function POST(request: Request): Promise<NextResponse> {
             "video/webm",
             "video/x-m4v",
             "video/x-ms-wmv",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/heic",
           ],
           maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
         };
