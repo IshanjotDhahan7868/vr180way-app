@@ -2,10 +2,14 @@ export type WarpMode = "stretch" | "pad";
 export type ProjectionMode = "vr180" | "vr360";
 export type SourceType = "file" | "youtube";
 export type MediaType = "video" | "image";
+export type QualityPreset = "fast" | "balanced" | "high";
+export type OutputResolution = "720p" | "1080p";
 
 export interface TransformParams {
   warpMode: WarpMode;
   projection: ProjectionMode;
+  quality: QualityPreset;
+  resolution: OutputResolution;
   zoom: number;
   stretchH: number;
   stretchV: number;
@@ -34,6 +38,8 @@ export interface Job {
 export const DEFAULT_TRANSFORM: TransformParams = {
   warpMode: "pad",
   projection: "vr180",
+  quality: "balanced",
+  resolution: "720p",
   zoom: 1.0,
   stretchH: 1.0,
   stretchV: 1.0,

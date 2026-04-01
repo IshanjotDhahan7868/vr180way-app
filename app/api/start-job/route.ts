@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const { blobUrl, originalFilename, warpMode, projection, stretchH, stretchV, cropX, cropY, zoom } = body;
+    const { blobUrl, originalFilename, warpMode, projection, quality, resolution, stretchH, stretchV, cropX, cropY, zoom } = body;
 
     if (!blobUrl || !originalFilename) {
       return NextResponse.json(
@@ -35,6 +35,8 @@ export async function POST(request: Request) {
         original_filename: originalFilename,
         warp_mode: warpMode,
         projection: projection ?? "vr180",
+        quality: quality ?? "balanced",
+        resolution: resolution ?? "720p",
         stretch_h: stretchH ?? 1.0,
         stretch_v: stretchV ?? 1.0,
         crop_x: cropX ?? 0.0,

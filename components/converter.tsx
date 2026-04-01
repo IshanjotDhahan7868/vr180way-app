@@ -6,6 +6,7 @@ import { ProjectionSelector } from "./projection-selector";
 import { SourceSelector } from "./source-selector";
 import { EyePreview } from "./eye-preview";
 import { TransformControls } from "./transform-controls";
+import { QualitySelector } from "./quality-selector";
 import { UploadZone } from "./upload-zone";
 import { YouTubeInput } from "./youtube-input";
 import { JobList } from "./job-list";
@@ -64,6 +65,13 @@ export function Converter() {
       />
 
       <TransformControls params={params} onChange={setParams} />
+
+      <QualitySelector
+        quality={params.quality}
+        resolution={params.resolution}
+        onQualityChange={(q) => setParams({ ...params, quality: q })}
+        onResolutionChange={(r) => setParams({ ...params, resolution: r })}
+      />
 
       <SourceSelector source={source} onChange={setSource} />
 

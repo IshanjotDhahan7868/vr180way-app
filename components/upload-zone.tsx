@@ -80,6 +80,8 @@ export function UploadZone({
             originalFilename: file.name,
             warpMode: params.warpMode,
             projection: params.projection,
+            quality: params.quality,
+            resolution: params.resolution,
             stretchH: params.stretchH,
             stretchV: params.stretchV,
             cropX: params.cropX,

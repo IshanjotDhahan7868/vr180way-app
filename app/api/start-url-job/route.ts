@@ -6,7 +6,7 @@ const API_SECRET = process.env.API_SECRET || "";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { youtubeUrl, warpMode, projection, stretchH, stretchV, cropX, cropY, zoom } = body;
+    const { youtubeUrl, warpMode, projection, quality, resolution, stretchH, stretchV, cropX, cropY, zoom } = body;
 
     if (!youtubeUrl) {
       return NextResponse.json({ error: "Missing YouTube URL" }, { status: 400 });
@@ -27,6 +27,8 @@ export async function POST(request: Request) {
         youtube_url: youtubeUrl,
         warp_mode: warpMode ?? "pad",
         projection: projection ?? "vr180",
+        quality: quality ?? "balanced",
+        resolution: resolution ?? "720p",
         stretch_h: stretchH ?? 1.0,
         stretch_v: stretchV ?? 1.0,
         crop_x: cropX ?? 0.0,

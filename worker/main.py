@@ -62,6 +62,8 @@ class ProcessRequest(BaseModel):
     original_filename: str
     warp_mode: str = "pad"
     projection: str = "vr180"
+    quality: str = "balanced"
+    resolution: str = "720p"
     stretch_h: float = 1.0
     stretch_v: float = 1.0
     crop_x: float = 0.0
@@ -73,11 +75,27 @@ class ProcessURLRequest(BaseModel):
     youtube_url: str
     warp_mode: str = "pad"
     projection: str = "vr180"
+    quality: str = "balanced"
+    resolution: str = "720p"
     stretch_h: float = 1.0
     stretch_v: float = 1.0
     crop_x: float = 0.0
     crop_y: float = 0.0
     zoom: float = 1.0
+
+
+# ── Quality Presets ──────────────────────────────────────────────────────────
+
+QUALITY_MAP = {
+    "fast":     {"preset": "ultrafast", "crf": "28", "tune": "fastdecode", "audio_br": "96k"},
+    "balanced": {"preset": "fast",      "crf": "23", "tune": "fastdecode", "audio_br": "128k"},
+    "high":     {"preset": "medium",    "crf": "18", "tune": None,         "audio_br": "192k"},
+}
+
+RESOLUTION_MAP = {
+    "720p":  (1280, 720),
+    "1080p": (1920, 1080),
+}
 
 
 # ── FFmpeg Pipeline (reused from original app) ──────────────────────────────
@@ -133,9 +151,10 @@ def build_ffmpeg_command(
     stretch_h: float = 1.0, stretch_v: float = 1.0,
     crop_x: float = 0.0, crop_y: float = 0.0,
     zoom: float = 1.0, projection: str = "vr180",
+    quality: str = "balanced", resolution: str = "720p",
 ) -> list:
-    EYE_W = 1920
-    EYE_H = 1080
+    EYE_W, EYE_H = RESOLUTION_MAP.get(resolution, (1280, 720))
+    qset = QUALITY_MAP.get(quality, QUALITY_MAP["balanced"])
 
     sh = max(0.5, min(2.5, stretch_h))
     sv = max(0.5, min(2.5, stretch_v))
@@ -213,23 +232,27 @@ def build_ffmpeg_command(
         f"[l][r]hstack[out]"
     )
 
-    return [
+    cmd = [
         "ffmpeg", "-y",
         "-i", str(input_path),
         "-filter_complex", filter_complex,
         "-map", "[out]",
         "-map", "0:a?",
         "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-tune", "fastdecode",
-        "-crf", "23",
+        "-preset", qset["preset"],
+        "-crf", qset["crf"],
+    ]
+    if qset["tune"]:
+        cmd += ["-tune", qset["tune"]]
+    cmd += [
         "-threads", "0",
-        "-c:a", "aac", "-b:a", "128k", "-ac", "2",
+        "-c:a", "aac", "-b:a", qset["audio_br"], "-ac", "2",
         "-movflags", "+faststart",
         "-progress", "pipe:2",
         "-nostats",
         str(output_path)
     ]
+    return cmd
 
 
 def inject_vr180_metadata(output_path: Path):
@@ -295,7 +318,8 @@ def upload_to_blob(local_path: Path, filename: str) -> str:
 def process_video(job_id: str, blob_url: str, original_filename: str,
                   warp_mode: str, stretch_h: float, stretch_v: float,
                   crop_x: float, crop_y: float, zoom: float,
-                  projection: str = "vr180"):
+                  projection: str = "vr180", quality: str = "balanced",
+                  resolution: str = "720p", _retry: int = 0):
     global active_job_count
     job = jobs[job_id]
 
@@ -304,7 +328,10 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
         job.update({"status": "processing", "progress": 2, "stage": "Downloading video..."})
         ext = Path(original_filename).suffix.lower() or ".mp4"
         input_path = TMP_DIR / f"{job_id}_input{ext}"
-        download_from_blob(blob_url, input_path)
+        try:
+            download_from_blob(blob_url, input_path)
+        except Exception as e:
+            raise RuntimeError(f"Download failed — check your network or try again. ({e})")
 
         # Validate
         job.update({"progress": 5, "stage": "Analysing video..."})
@@ -321,19 +348,24 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
         # Process
         stem = Path(original_filename).stem
         proj_label = "vr360" if projection == "vr360" else "vr180"
-        out_name = f"{stem}_{proj_label}_{warp_mode}.mp4"
+        out_name = f"{stem}_{proj_label}_{warp_mode}_{quality}.mp4"
         out_path = TMP_DIR / f"{job_id}_output.mp4"
-        job.update({"progress": 8, "stage": "Starting encoder...",
+        job.update({"progress": 8, "stage": f"Encoding ({quality} quality, {resolution})...",
                      "orientation": info.get("orientation", "landscape")})
 
         cmd = build_ffmpeg_command(input_path, out_path, warp_mode, info,
                                    stretch_h, stretch_v, crop_x, crop_y, zoom,
-                                   projection=projection)
+                                   projection=projection, quality=quality,
+                                   resolution=resolution)
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, bufsize=1)
 
+        stderr_tail = []
         for line in proc.stderr:
             line = line.strip()
+            stderr_tail.append(line)
+            if len(stderr_tail) > 20:
+                stderr_tail.pop(0)
             if line.startswith("out_time="):
                 elapsed = parse_time(line.split("=", 1)[1])
                 if duration > 0:
@@ -344,7 +376,15 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
 
         proc.wait()
         if proc.returncode != 0:
-            raise RuntimeError("FFmpeg conversion failed. Video may be corrupted or unsupported.")
+            # Better error diagnosis
+            err_lines = "\n".join(stderr_tail[-5:])
+            if "killed" in err_lines.lower() or proc.returncode == -9:
+                raise RuntimeError("Out of memory — try a shorter video or lower quality/resolution.")
+            if "no such file" in err_lines.lower() or "does not exist" in err_lines.lower():
+                raise RuntimeError("Video file is corrupted or has an unsupported codec.")
+            if "invalid data" in err_lines.lower():
+                raise RuntimeError("Video data is invalid — the file may be damaged.")
+            raise RuntimeError(f"Conversion failed (code {proc.returncode}). Try lower quality or a different video.")
 
         # Inject VR metadata
         job.update({"progress": 91, "stage": "Injecting VR metadata..."})
@@ -364,14 +404,29 @@ def process_video(job_id: str, blob_url: str, original_filename: str,
         })
 
     except Exception as e:
+        # Auto-retry once on OOM or transient failures
+        is_oom = "out of memory" in str(e).lower() or "killed" in str(e).lower()
+        is_transient = "download failed" in str(e).lower() or "network" in str(e).lower()
+        if _retry == 0 and (is_oom or is_transient):
+            # Cleanup before retry
+            for f in TMP_DIR.glob(f"{job_id}_*"):
+                f.unlink(missing_ok=True)
+            retry_quality = "fast" if is_oom and quality != "fast" else quality
+            retry_res = "720p" if is_oom and resolution == "1080p" else resolution
+            job.update({"progress": 0, "stage": f"Retrying with {retry_quality}/{retry_res}...", "error": None})
+            process_video(job_id, blob_url, original_filename, warp_mode,
+                          stretch_h, stretch_v, crop_x, crop_y, zoom,
+                          projection, retry_quality, retry_res, _retry=1)
+            return
         job.update({"status": "error", "error": str(e), "stage": "Error"})
 
     finally:
         # Cleanup temp files
         for f in TMP_DIR.glob(f"{job_id}_*"):
             f.unlink(missing_ok=True)
-        with job_lock:
-            active_job_count -= 1
+        if _retry == 0:
+            with job_lock:
+                active_job_count -= 1
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -407,7 +462,7 @@ async def start_processing(req: ProcessRequest):
         target=process_video,
         args=(job_id, req.blob_url, req.original_filename, req.warp_mode,
               req.stretch_h, req.stretch_v, req.crop_x, req.crop_y, req.zoom,
-              req.projection),
+              req.projection, req.quality, req.resolution),
         daemon=True,
     )
     thread.start()
@@ -451,7 +506,8 @@ async def start_url_processing(req: ProcessURLRequest):
     thread = threading.Thread(
         target=process_youtube,
         args=(job_id, req.youtube_url, req.warp_mode, req.projection,
-              req.stretch_h, req.stretch_v, req.crop_x, req.crop_y, req.zoom),
+              req.stretch_h, req.stretch_v, req.crop_x, req.crop_y, req.zoom,
+              req.quality, req.resolution),
         daemon=True,
     )
     thread.start()
@@ -461,7 +517,8 @@ async def start_url_processing(req: ProcessURLRequest):
 
 def process_youtube(job_id: str, youtube_url: str, warp_mode: str,
                     projection: str, stretch_h: float, stretch_v: float,
-                    crop_x: float, crop_y: float, zoom: float):
+                    crop_x: float, crop_y: float, zoom: float,
+                    quality: str = "balanced", resolution: str = "720p"):
     """Download from YouTube with yt-dlp, then process with FFmpeg."""
     global active_job_count
     job = jobs[job_id]
@@ -550,7 +607,8 @@ def process_youtube(job_id: str, youtube_url: str, warp_mode: str,
         else:
             cmd = build_ffmpeg_command(input_path, out_path, warp_mode, info,
                                        stretch_h, stretch_v, crop_x, crop_y, zoom,
-                                       projection=projection)
+                                       projection=projection, quality=quality,
+                                       resolution=resolution)
 
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, bufsize=1)
