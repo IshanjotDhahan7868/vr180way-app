@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "VR Browser — View any website in VR",
   description: "Browse any website in split-screen VR mode with head-tilt scrolling",
   other: {
-    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };

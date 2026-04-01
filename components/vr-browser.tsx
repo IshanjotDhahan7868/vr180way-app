@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface VRBrowserProps {
   url: string;
@@ -8,16 +8,11 @@ interface VRBrowserProps {
 
 export function VRBrowser({ url }: VRBrowserProps) {
   const [vrMode, setVrMode] = useState(false);
-  const [permissionGranted, setPermissionGranted] = useState(false);
   const [isLandscape, setIsLandscape] = useState(true);
-  const [neutralBeta, setNeutralBeta] = useState<number | null>(null);
-  const leftRef = useRef<HTMLIFrameElement>(null);
-  const rightRef = useRef<HTMLIFrameElement>(null);
-  const scrollSpeedRef = useRef(0);
 
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+  // Normalize URL
+  const targetUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
 
-  // Orientation check
   useEffect(() => {
     const check = () => setIsLandscape(window.innerWidth > window.innerHeight);
     check();
@@ -25,139 +20,76 @@ export function VRBrowser({ url }: VRBrowserProps) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Head-tilt scroll controller
-  useEffect(() => {
-    if (!vrMode || !permissionGranted) return;
-
-    const DEAD_ZONE = 8;
-    const MAX_SPEED = 18;
-
-    function handleOrientation(e: DeviceOrientationEvent) {
-      if (e.beta === null) return;
-      setNeutralBeta((prev) => (prev === null ? e.beta! : prev));
-
-      const neutral = neutralBeta ?? e.beta;
-      const diff = e.beta - neutral;
-
-      if (Math.abs(diff) < DEAD_ZONE) {
-        scrollSpeedRef.current = 0;
-        return;
-      }
-
-      const dir = diff > 0 ? 1 : -1;
-      const magnitude = Math.min(Math.abs(diff) - DEAD_ZONE, 40) / 40;
-      scrollSpeedRef.current = dir * magnitude * MAX_SPEED;
-    }
-
-    window.addEventListener("deviceorientation", handleOrientation);
-
-    // Send scroll commands to both iframes
-    const interval = setInterval(() => {
-      const speed = scrollSpeedRef.current;
-      if (Math.abs(speed) < 0.5) return;
-
-      const msg = { type: "vr-scroll", dy: speed };
-      leftRef.current?.contentWindow?.postMessage(msg, "*");
-      rightRef.current?.contentWindow?.postMessage(msg, "*");
-    }, 16); // ~60fps
-
-    return () => {
-      window.removeEventListener("deviceorientation", handleOrientation);
-      clearInterval(interval);
-    };
-  }, [vrMode, permissionGranted, neutralBeta]);
-
   const enterVR = useCallback(async () => {
-    // Request DeviceOrientation permission on iOS
+    // Request DeviceOrientation permission on iOS (for future use)
     const DOE = window.DeviceOrientationEvent as unknown as {
       requestPermission?: () => Promise<string>;
     };
     if (typeof DOE?.requestPermission === "function") {
-      try {
-        const result = await DOE.requestPermission();
-        setPermissionGranted(result === "granted");
-      } catch {
-        setPermissionGranted(false);
-      }
-    } else {
-      setPermissionGranted(true);
+      try { await DOE.requestPermission(); } catch { /* ok */ }
     }
-    setNeutralBeta(null);
     setVrMode(true);
   }, []);
 
-  const recalibrate = useCallback(() => {
-    setNeutralBeta(null);
-  }, []);
-
-  // VR Mode — fullscreen SBS split
+  // VR Mode — fullscreen SBS with direct iframes (full interactivity)
   if (vrMode) {
     return (
       <div className="fixed inset-0 z-50 flex bg-black">
-        {/* Left eye */}
+        {/* Left eye — fully interactive */}
         <div className="relative h-full w-1/2 overflow-hidden border-r border-white/10">
           <iframe
-            ref={leftRef}
-            src={proxyUrl}
+            src={targetUrl}
             className="h-full w-full border-none"
-            sandbox="allow-scripts allow-same-origin"
+            allow="fullscreen"
           />
         </div>
-        {/* Right eye */}
+        {/* Right eye — fully interactive */}
         <div className="relative h-full w-1/2 overflow-hidden">
           <iframe
-            ref={rightRef}
-            src={proxyUrl}
+            src={targetUrl}
             className="h-full w-full border-none"
-            sandbox="allow-scripts allow-same-origin"
+            allow="fullscreen"
           />
         </div>
 
-        {/* Scroll indicator */}
-        <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2">
-          <div className="rounded-full bg-black/60 px-3 py-1 text-center text-[10px] text-white/50">
-            Tilt head to scroll
+        {/* Bottom hint */}
+        <div className="pointer-events-none fixed bottom-3 left-1/2 -translate-x-1/2">
+          <div className="rounded-full bg-black/70 px-3 py-1 text-[10px] text-white/40">
+            Scroll &amp; tap through the nose gap
           </div>
         </div>
 
-        {/* Exit + recalibrate (tap screen to show briefly) */}
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-4 opacity-0 transition-opacity active:opacity-100"
-          onClick={(e) => e.stopPropagation()}
+        {/* Exit button — visible on tap */}
+        <button
+          onClick={() => setVrMode(false)}
+          className="fixed top-3 left-1/2 z-50 -translate-x-1/2 cursor-pointer rounded-full bg-black/70 px-4 py-1.5 text-xs text-white opacity-0 backdrop-blur transition-opacity active:opacity-100 hover:opacity-100"
         >
-          <div className="flex gap-2">
-            <button
-              onClick={() => setVrMode(false)}
-              className="cursor-pointer rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur"
-            >
-              Exit VR
-            </button>
-            <button
-              onClick={recalibrate}
-              className="cursor-pointer rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur"
-            >
-              Recalibrate
-            </button>
-          </div>
-        </div>
+          Exit VR
+        </button>
       </div>
     );
   }
 
-  // Pre-VR view
+  // Pre-VR preview
   return (
-    <div className="flex flex-col gap-6 py-8">
-      {/* Preview */}
+    <div className="flex flex-col gap-5 py-6">
+      {/* Preview — direct iframe, fully interactive */}
       <div className="overflow-hidden rounded-2xl border border-bord bg-surf">
-        <div className="border-b border-bord px-4 py-2">
-          <span className="truncate text-xs text-txt3">{url}</span>
+        <div className="flex items-center gap-2 border-b border-bord px-4 py-2">
+          <div className="h-2 w-2 rounded-full bg-green" />
+          <span className="truncate text-xs text-txt3">{targetUrl}</span>
         </div>
         <iframe
-          src={proxyUrl}
-          className="h-[50vh] w-full border-none"
-          sandbox="allow-scripts allow-same-origin"
+          src={targetUrl}
+          className="h-[60vh] w-full border-none"
+          allow="fullscreen"
         />
       </div>
+
+      <p className="text-center text-xs text-txt3">
+        You can interact with the page above — click buttons, scroll, log in.
+        When ready, enter VR mode.
+      </p>
 
       {!isLandscape && (
         <div className="rounded-xl border border-amber/20 bg-amber-soft px-4 py-3 text-center text-sm text-amber">
@@ -173,12 +105,12 @@ export function VRBrowser({ url }: VRBrowserProps) {
       </button>
 
       <div className="rounded-xl border border-bord bg-surf p-4">
-        <h3 className="mb-2 text-sm font-medium text-txt">How it works</h3>
+        <h3 className="mb-2 text-sm font-medium text-txt">How to use in Cardboard</h3>
         <ul className="flex flex-col gap-1.5 text-sm text-txt2">
-          <li><strong className="text-txt">Split screen</strong> — the page is shown side-by-side for each eye</li>
-          <li><strong className="text-txt">Head-tilt scroll</strong> — look down to scroll down, look up to scroll up</li>
-          <li><strong className="text-txt">Recalibrate</strong> — tap the screen and hit Recalibrate if drift occurs</li>
-          <li><strong className="text-txt">Best experience</strong> — add this page to your Home Screen first</li>
+          <li><strong className="text-txt">Touch through nose gap</strong> — reach through the Cardboard opening to tap and scroll</li>
+          <li><strong className="text-txt">Interact first</strong> — accept popups, log in, navigate to the page you want before entering VR</li>
+          <li><strong className="text-txt">Both halves are live</strong> — each eye shows a fully interactive copy of the site</li>
+          <li><strong className="text-txt">Exit</strong> — tap the top-center of the screen to show the exit button</li>
         </ul>
       </div>
     </div>

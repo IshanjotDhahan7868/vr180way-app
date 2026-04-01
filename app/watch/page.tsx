@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Watch in VR — VR180 Converter",
   description: "Watch your converted VR video in Google Cardboard",
   other: {
-    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };
