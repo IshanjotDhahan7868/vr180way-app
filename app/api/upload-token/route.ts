@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             "image/webp",
             "image/heic",
           ],
-          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+          maximumSizeInBytes: 200 * 1024 * 1024, // 200MB — one upload must not eat the 1GB Blob allowance
         };
       },
       onUploadCompleted: async () => {
